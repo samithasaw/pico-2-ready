@@ -6,6 +6,7 @@
 
 #include "hardware/clocks.h"
 #include "hardware/watchdog.h"
+#include "hardware/gpio.h" // GPIO සපෝට් එක සඳහා එකතු කරන ලදී
 #include "led.h"
 #include "pico/stdlib.h"
 #include "pico/bootrom.h"
@@ -14,6 +15,8 @@
 #include "exploit.h"
 #include "usb.h"
 #include "log.h"
+
+#define BUTTON_PIN 9 // Push button එක සම්බන්ධ කර ඇති GPIO Pin එක
 
 #if WITH_AUTO_MODE
 
@@ -49,30 +52,16 @@ void do_auto(void) {
     while (true) {
         int ret = exploit_run();
 
-        /*
-         * This case means not even device descriptor
-         * could be queried
-         *
-         * On those boards with redundant resistor
-         * it could mean that device was not even
-         * connected yet
-         *
-         * So we sleep a bit, reset the bus and try again
-         *
-         * UPDATE: same behavior for already PWNED devices
-         */
         if (ret == -2) {
             sleep_ms(CONNECTION_FAIL_SLEEP_MS);
             usb_bus_reset_open_ep0();
             continue;
         }
 
-        /* no-go failure, bailing */
         if (ret != 0) {
             fatal_failure();
         }
 
-        /* it all went well then */
         break;
     }
 
@@ -158,8 +147,21 @@ void do_shell(void) {
 
 #endif
 
+// Button එක Press වන තෙක් Wait වන Function එක
+void wait_for_button_press(void) {
+    printf("Waiting for Push Button (GPIO 9) press...\n");
+    
+    // Button එක Press (GND වෙන තෙක්) Loop එකේ තියෙනවා
+    while (gpio_get(BUTTON_PIN) != 0) {
+        sleep_ms(10);
+    }
+    
+    printf("Button Pressed! Starting process...\n");
+    // Debounce delay
+    sleep_ms(200);
+}
+
 int main(void) {
-    // PIO USB needs sys_clk to be a multiple of 12 MHz
 #if PICO_RP2350
     set_sys_clock_khz(156000, true);
 #elif PICO_RP2040
@@ -173,8 +175,11 @@ int main(void) {
 
     stdio_init_all();
 
-    // this delay being long enough, seems to have
-    // a HUGE impact on the exploit reliability
+    // Push Button එක (GPIO 9) Initialize කිරීම
+    gpio_init(BUTTON_PIN);
+    gpio_set_dir(BUTTON_PIN, GPIO_IN);
+    gpio_pull_up(BUTTON_PIN); // Active LOW pull-up setup
+
     sleep_ms(2000);
 
     led_set_state(LED_STATE_IDLE);
@@ -182,13 +187,8 @@ int main(void) {
     printf("\n============ %s v%s ============\n", PICO_PROGRAM_NAME, PICO_PROGRAM_VERSION_STRING);
     printf("built for %s, PIO USB @ GP%d/%d (D+/D-)\n\n", BOARD_NAME, PIO_USB_DP_PIN_DEFAULT, PIO_USB_DP_PIN_DEFAULT + 1);
 
-#if PICO_RP2040
-    printf("==========================================================\n");
-    printf("WARNING: RP2040 reliability is not the best in many cases,\n");
-    printf("you shall better switch to RP2350\n");
-    printf("==========================================================\n");
-    printf("\n");
-#endif
+    // Push Button එක ඔබන තෙක් මෙතන නතර වී සිටී
+    wait_for_button_press();
 
     usb_start();
     usb_bus_init();
