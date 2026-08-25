@@ -51,6 +51,7 @@ target_link_libraries(usbliter8
     pico_stdlib
     pico_status_led
     hardware_pwm
+    hardware_pio
     pio_usb
 )
 
