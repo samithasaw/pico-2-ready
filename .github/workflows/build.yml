@@ -1,0 +1,46 @@
+name: Build Pico 2 Firmware
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository with Submodules
+      uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'
+
+    - name: Install Dependencies & ARM Toolchain
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc-arm-none-eabi libnewlib-arm-none-eabi build-essential cmake ninja-build
+
+    - name: Clone Pico SDK (v2.0+)
+      run: |
+        git clone --depth 1 --branch master https://github.com/raspberrypi/pico-sdk.git $GITHUB_WORKSPACE/pico-sdk
+        cd $GITHUB_WORKSPACE/pico-sdk
+        git submodule update --init
+
+    - name: Configure CMake for Pico 2
+      run: |
+        mkdir build
+        cd build
+        cmake -DPICO_BOARD=pico2 -DPICO_SDK_PATH=$GITHUB_WORKSPACE/pico-sdk -GNinja ..
+
+    - name: Compile Code
+      run: |
+        cd build
+        ninja
+
+    - name: Upload UF2 Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: usbliter8-pico2-firmware
+        path: build/*.uf2
