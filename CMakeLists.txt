@@ -49,6 +49,7 @@ add_subdirectory(pio_usb)
 
 target_link_libraries(usbliter8
     pico_stdlib
+    hardware_gpio
     pico_status_led
     hardware_pwm
     hardware_pio
@@ -56,3 +57,5 @@ target_link_libraries(usbliter8
 )
 
 pico_add_extra_outputs(usbliter8)
+
+add_compile_options(-finput-charset=UTF-8)
